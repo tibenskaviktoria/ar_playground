@@ -1,5 +1,6 @@
 from pathlib import Path
 import cv2
+from contextlib import ExitStack
 from cv_utils import (
     openCapture, 
     load_calibration, 
@@ -7,12 +8,7 @@ from cv_utils import (
     create_charuco_board,
     createWindow
 )
-from contextlib import ExitStack
-
-
-def timestamp():
-    from datetime import datetime
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+from utils import timestamp
 
 
 def main():
@@ -25,7 +21,7 @@ def main():
     img_size = None
 
     # Try to load existing calibration
-    camera_matrix, dist_coeffs = load_calibration("calib.npz")
+    camera_matrix, dist_coeffs = load_calibration("MicrosoftLifeCam_fixedFocus50_calib.npz")
     if camera_matrix is None:
         print("No calib.npz found — running in uncalibrated mode. Press 'c' to capture charuco frames, 'k' to calibrate.")
     else:
@@ -38,7 +34,7 @@ def main():
     # Enter window + capture contexts with a single ExitStack (avoids deep nesting)
     with ExitStack() as stack:
         stack.enter_context(createWindow("Camera (ChArUco)"))
-        cap = stack.enter_context(openCapture(1))
+        cap = stack.enter_context(openCapture(0))
         while True:
             ret, frame = cap.read()
             if not ret:
