@@ -1,46 +1,127 @@
+#%%
+%load_ext autoreload
+%autoreload 2
+
 import pyrender
 import numpy as np
 import cv2
 import trimesh
+from cv_utils import (
+    load_calibration,
+    create_charuco_board,
+    openCapture
+)
 
-scene = pyrender.Scene()
-renderer = pyrender.OffscreenRenderer(viewport_width=640, viewport_height=480)
+import matplotlib.pyplot as plt
 
+def init_scene(scale = 1.0):
+    scene = pyrender.Scene()
+    mesh = trimesh.load("./3D_models/Jeep_Renegade_2016.obj")
+    # Merge all geometries into one mesh
+    mesh = sum(mesh.geometry.values()) 
+    mesh.apply_scale(scale) 
+    scene.add(pyrender.Mesh.from_trimesh(mesh))
+    return scene, mesh
 
-# Create a Pyrender scene
-scene = pyrender.Scene()
+SYSTEM_SCALE = 0.01
 
-# Load the Jeep model
-loaded_mesh = trimesh.load("./3D_models/Jeep_Renegade_2016.obj")
+#%%
 
-if isinstance(loaded_mesh, trimesh.Scene):
-    # If it's a scene, combine all geometries into a single mesh
-    for name, mesh in loaded_mesh.geometry.items():
-        pyrender_mesh = pyrender.Mesh.from_trimesh(mesh)
-        scene.add(pyrender_mesh, name=name)
-else:
-    pyrender_mesh = pyrender.Mesh.from_trimesh(loaded_mesh)
-    scene.add(pyrender_mesh)
+scene, mesh = init_scene(SYSTEM_SCALE)
 
-# Add a directional light to the scene
+mesh.bounding_box.extents
+
+#%%
+
+# Load calibration
+camera_matrix, dist_coeffs = load_calibration("MicrosoftLifeCam_fixedFocus50_calib.npz")
+image_width=1280
+image_height=720
+
+##%%
+
+renderer = pyrender.OffscreenRenderer(viewport_width=image_width, viewport_height=image_height)
+
 light = pyrender.DirectionalLight(color=np.ones(3), intensity=3.0)
 scene.add(light, pose=np.eye(4))  # Add light at the default pose
 
-# Create a camera and add it to the scene
 camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0, aspectRatio=1.0)
+camera = pyrender.IntrinsicsCamera(
+    fx=camera_matrix[0,0],
+    fy=camera_matrix[1,1],
+    cx=camera_matrix[0,2],
+    cy=camera_matrix[1,2]
+)   
+
 camera_pose = np.array([
     [1, 0, 0, 0],
-    [0, 1, 0, 1],
-    [0, 0, 1, 4],  # Move the camera 4 units away from the origin
+    [0, 1, 0, .01],
+    [0, 0, 1, .08],  # Move the camera 4 units away from the origin
     [0, 0, 0, 1]
 ])
-scene.add(camera, pose=camera_pose)
+camera_node = scene.add(camera, pose=camera_pose)
 
-while True:
-    color, depth = renderer.render(scene)
-    cv2.imshow('Pyrender', color)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+color, depth = renderer.render(scene)
+plt.imshow(depth, cmap='jet')
 
-renderer.delete()
-cv2.destroyAllWindows()
+#%%
+
+frame = np.load("frame.npz")['frame']
+plt.imshow(frame)
+
+##%%
+
+from cv_utils import create_charuco_board, estimate_pose_charuco
+
+board = create_charuco_board(SYSTEM_SCALE)
+gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  
+T_camera = estimate_pose_charuco(
+    gray, 
+    board, 
+    camera_matrix, 
+    dist_coeffs
+)
+
+print(T_camera)
+
+## %%
+
+camera_node.matrix = T_camera
+
+
+#%%
+
+axis = trimesh.creation.axis(origin_size=.5)
+mesh = trimesh.load("./3D_models/Jeep_Renegade_2016.obj")
+
+scene = axis.scene()
+scene.add_geometry(mesh)
+scene.set_camera(transform=T_camera)
+scene.show()
+
+#%%
+
+
+##%%
+
+#pyrender.Viewer(scene, use_raymond_lighting=True)
+
+#%%
+
+
+color, depth = renderer.render(scene)
+
+plt.imshow(color)
+
+#%%
+
+
+frame = None
+with openCapture(0, image_width, image_height) as cap:
+    ret, frame = cap.read()
+
+rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+plt.imshow(rgb)
+
+np.savez("frame.npz", frame=frame)
+
