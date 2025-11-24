@@ -1,9 +1,7 @@
 opencv-contrib-python==4.10.0.84
 opencv-python==4.10.0.84
-#pygame==2.6.1
-#pyglet==1.5.31
-#Pygments==2.19.2
-#PyOpenGL==3.1.6
+pygame==2.6.1
+pyrr==0.10.3
 pyrender==0.1.45
 trimesh==4.9.0
 numpy==1.26.4
