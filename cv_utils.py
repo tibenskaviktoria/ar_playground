@@ -57,12 +57,14 @@ def create_charuco_board(scale = 1):
     board = cv2.aruco.CharucoBoard((squares_x, squares_y), square_length, marker_length, aruco_dict)
     return board
 
+
 def transfrom_rvec_tvec_to_matrix(rvec, tvec):
     R, _ = cv2.Rodrigues(rvec)
     T = np.eye(4)
     T[0:3, 0:3] = R
     T[0:3, 3] = tvec.flatten()
     return T
+
 
 def estimate_pose_charuco(gray_image, board, camera_matrix, dist_coeffs):
     MIN_CORNERS_FOR_POSE = 4
@@ -94,4 +96,4 @@ def estimate_pose_charuco(gray_image, board, camera_matrix, dist_coeffs):
     if not retval:
         return None, None
     
-    return transfrom_rvec_tvec_to_matrix(rvec, tvec)
+    return transfrom_rvec_tvec_to_matrix(rvec, tvec), rvec, tvec
