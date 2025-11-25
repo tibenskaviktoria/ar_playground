@@ -6,13 +6,12 @@ import pyrender
 import numpy as np
 import cv2
 import trimesh
+import matplotlib.pyplot as plt
 from cv_utils import (
     load_calibration,
     create_charuco_board,
     openCapture
 )
-
-import matplotlib.pyplot as plt
 
 def init_scene(scale = 1.0):
     scene = pyrender.Scene()
@@ -69,38 +68,26 @@ plt.imshow(depth, cmap='jet')
 frame = np.load("frame.npz")['frame']
 plt.imshow(frame)
 
-##%%
+#%%
 
 from cv_utils import create_charuco_board, estimate_pose_charuco
 
 board = create_charuco_board(SYSTEM_SCALE)
 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  
-T_camera = estimate_pose_charuco(
+T_camera, rvec, tvec = estimate_pose_charuco(
     gray, 
     board, 
     camera_matrix, 
     dist_coeffs
 )
+cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvec, tvec, board.getSquareLength() * 3)
+plt.imshow(frame)
 
 print(T_camera)
 
-## %%
+##%%
 
 camera_node.matrix = T_camera
-
-
-#%%
-
-axis = trimesh.creation.axis(origin_size=.5)
-mesh = trimesh.load("./3D_models/Jeep_Renegade_2016.obj")
-
-scene = axis.scene()
-scene.add_geometry(mesh)
-scene.set_camera(transform=T_camera)
-scene.show()
-
-#%%
-
 
 ##%%
 
@@ -108,10 +95,21 @@ scene.show()
 
 #%%
 
-
 color, depth = renderer.render(scene)
 
 plt.imshow(color)
+
+#%%
+
+axis = trimesh.creation.axis(origin_size=.5)
+mesh = trimesh.load("./3D_models/Jeep_Renegade_2016.obj", process=True)
+
+trimesh_scene = axis.scene()
+trimesh_scene.add_geometry(mesh)
+trimesh_scene.camera.transform = T_camera
+trimesh_scene.show()
+
+#%%
 
 #%%
 
