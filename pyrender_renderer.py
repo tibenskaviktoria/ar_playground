@@ -26,7 +26,7 @@ def main():
     camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0, aspectRatio=1.0)
     camera_pose = np.array([
         [1, 0, 0, 0],
-        [0, 1, 0, 0],
+        [0, 1, 0, 1],
         [0, 0, 1, 4],  # Move the camera 4 units away from the origin
         [0, 0, 0, 1]
     ])
@@ -34,6 +34,7 @@ def main():
 
     # Create a Pyrender Viewer to display the scene
     pyrender.Viewer(scene, use_raymond_lighting=True)
+    
 
 if __name__ == "__main__":
     main()
