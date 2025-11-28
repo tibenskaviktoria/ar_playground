@@ -4,17 +4,6 @@ import pyrr
 from OpenGL.GL import *
 
 
-def transform_from_rvec_tvec(rvec, tvec):
-    """Convert OpenCV rvec/tvec to OpenGL 4x4 model-view matrix."""
-    R, _ = cv2.Rodrigues(rvec)
-    # Build 4x4 matrix: [R | t]
-    #                   [0 | 1]
-    matrix = np.eye(4, dtype=np.float32)
-    matrix[:3, :3] = R
-    matrix[:3, 3] = tvec.flatten()
-    return matrix.T.flatten()  # OpenGL uses column-major (transpose for row-major input)
-
-
 def draw_cube_gl(size=0.02):
     """Draw a wireframe cube using OpenGL with bottom-left corner at origin."""
     # Shift the cube so its bottom-left corner (was at [-size,-size,0]) moves to (0,0,0)

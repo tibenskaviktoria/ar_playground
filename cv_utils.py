@@ -46,12 +46,12 @@ def save_calibration(camera_matrix, dist_coeffs, path="calib.npz"):
     print(f"Saved calibration to {path}")
 
 
-def create_charuco_board(scale = 1):
+def create_charuco_board():
     # --- ChArUco board parameters (adjust to your printed board) ---
     squares_x = 7   # number of chessboard squares in X direction
     squares_y = 5   # number of chessboard squares in Y direction
-    square_length = 0.03 * scale  # meters (or any other unit) - used for pose/scale
-    marker_length = 0.022 * scale # must be < square_length
+    square_length = 0.03  # meters (or any other unit) - used for pose
+    marker_length = 0.022 # must be < square_length
 
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_50)
     board = cv2.aruco.CharucoBoard((squares_x, squares_y), square_length, marker_length, aruco_dict)
@@ -61,8 +61,8 @@ def create_charuco_board(scale = 1):
 def transfrom_rvec_tvec_to_matrix(rvec, tvec):
     R, _ = cv2.Rodrigues(rvec)
     T = np.eye(4)
-    T[0:3, 0:3] = R
-    T[0:3, 3] = tvec.flatten()
+    T[:3, :3] = R
+    T[:3, 3] = tvec.flatten()
     return T
 
 
