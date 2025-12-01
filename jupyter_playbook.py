@@ -8,6 +8,7 @@ import cv2
 import trimesh
 import matplotlib.pyplot as plt
 from pytransform3d.rotations import matrix_from_axis_angle
+from pytransform3d.transformations import transform_from as tf
 from cv_utils import (
     load_calibration,
     create_charuco_board,
@@ -23,24 +24,30 @@ def init_scene(scale = 1.0):
     # Merge all geometries into one mesh
     mesh = sum(mesh.geometry.values()) 
     mesh.apply_scale(scale)
-    flip_z = np.eye(4)
-    flip_z[2, 2] = -1
-    model_pose = np.eye(4)
-    # model_pose[:3, 3] = [0.1, 0.2, -0.4]
-    model_pose[:3, 3] = [0, 0, 0]
-    scene.add(pyrender.Mesh.from_trimesh(mesh), pose=model_pose)
-    return scene, mesh, model_pose
+    x_rot = matrix_from_axis_angle((1,0,0, np.pi/2))
+    z_rot = matrix_from_axis_angle((0,0,1, -np.pi/2))
+    model_rotation = z_rot @ x_rot
+    model_corr = tf(p=[0.105, -0.075, 0], R=model_rotation)
+    scene.add(pyrender.Mesh.from_trimesh(mesh), pose=model_corr)
+    return scene, mesh
 
 
 def rotx(theta):
     R = matrix_from_axis_angle((1,0,0, theta))
     T = np.eye(4)
-    T[0:3,0:3] = R
+    T[:3,:3] = R
     return T
 
 
+def draw_transformed_axes_on_image(image, camera_matrix, dist_coeffs, A2B, length=0.05):
+    tvec = A2B[:3, 3]
+    rvec = cv2.Rodrigues(A2B[:3, :3])[0]
+    cv2.drawFrameAxes(image, camera_matrix, dist_coeffs, rvec, tvec, length)
+    return image
+
+
 #%%
-scene, mesh, model_pose = init_scene(SYSTEM_SCALE)
+scene, mesh = init_scene(SYSTEM_SCALE)
 mesh.bounding_box.extents
 print(mesh.extents)
 
@@ -64,23 +71,24 @@ T_camera, rvec, tvec = estimate_pose_charuco(
 
 T_camera_corrected = T_camera @ rotx(np.pi)
 T_cam2world = np.linalg.inv(T_camera_corrected)
-# T_cam2world = T_camera_corrected
 
-# cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvec, tvec, board.getSquareLength() * 3)
+frame = draw_transformed_axes_on_image(
+    frame, 
+    camera_matrix, 
+    dist_coeffs,
+    T_camera_corrected, 
+    length=board.getSquareLength() * 3
+)
+
 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 plt.imshow(frame)
 print("T_camera", T_camera)
 
 
 #%%
-renderer = pyrender.OffscreenRenderer(viewport_width=image_width, viewport_height=image_height)
 
 light = pyrender.DirectionalLight(color=np.ones(3), intensity=50.0)
 scene.add(light, pose=np.eye(4))
-
-cube = trimesh.creation.box(extents=[0.03, 0.03, 0.03])  # 3 cm cube
-cube_pyr = pyrender.Mesh.from_trimesh(cube)
-scene.add(cube_pyr, pose=np.eye(4))
 
 camera = pyrender.IntrinsicsCamera(
     fx=camera_matrix[0,0],
@@ -89,21 +97,11 @@ camera = pyrender.IntrinsicsCamera(
     cy=camera_matrix[1,2]
 )
 
-test_cam_pose = np.eye(4)
-test_cam_pose = np.array([
-    [1, 0, 0, 0.2],
-    [0, 1, 0, 0.4],
-    [0, 0, 1, -0.5],
-    [0, 0, 0, 1]
-])
-
-combined_pose = test_cam_pose @ T_cam2world
-print("Combined pose:\n", combined_pose)
-
 # Assign the camera pose
-selected_cam_pose = combined_pose
-camera_node = scene.add(camera, pose=selected_cam_pose)
+corr = tf(p=[0,0,0], R=matrix_from_axis_angle((1,0,0, np.pi)))  # correct for OpenCV to OpenGL coord sys
+camera_node = scene.add(camera, pose=T_cam2world @ corr)
 
+renderer = pyrender.OffscreenRenderer(viewport_width=image_width, viewport_height=image_height)
 color, depth = renderer.render(scene)
 plt.imshow(color)
 
@@ -121,32 +119,39 @@ print("Mask coverage (percent):", mask.sum() * 100.0 / mask.size)
 
 #%%
 #%matplotlib tk
+%matplotlib widget
 
 # Visualize the camera position and rotation in world space
 import pytransform3d.camera as pc
 import pytransform3d.transformations as pt
 import pytransform3d.plot_utils as pu
 
-virtual_image_distance = .5
 
-plt.figure(num='3d', clear=True)
-ax = pt.plot_transform(A2B=np.eye(4), s=0.2, name = 'world')  # world origin axes
-pt.plot_transform(A2B=selected_cam_pose, ax=ax, s=0.2, name = 'camera')
+scene, mesh = init_scene(SYSTEM_SCALE)
+
+virtual_image_distance = .35
+
+plt.figure(figsize=(5,5))
+ax = pt.plot_transform(ax_s=.35, A2B=np.eye(4), s=0.2, name = 'world')  # world origin axes
+ax.view_init(elev=40, azim=-160,roll=0)
+pt.plot_transform(A2B=T_cam2world, ax=ax, s=0.2, name = 'camera')
 pc.plot_camera(
     ax,
-    cam2world=selected_cam_pose,
+    cam2world=T_cam2world,
     M=camera_matrix,
     sensor_size=(1280,720),
     virtual_image_distance=virtual_image_distance,
 )
 
-bounds_min, bounds_max = mesh.bounds
-center_model = (bounds_min + bounds_max) / 2.0
-T_center = np.eye(4)
-T_center[:3, 3] = center_model
-pu.plot_box(ax, mesh.extents, A2B=model_pose @ T_center, color="cyan", alpha=0.5)
+bb = mesh.bounding_box
+pu.plot_box(ax, bb.extents, A2B=bb.transform, color="cyan", alpha=0.5)
 
-plt.show()
+bounds = scene.bounds
+extents = bounds[1] - bounds[0]
+center = (bounds[0] + bounds[1]) / 2
+A2B = np.eye(4)
+A2B[:3, 3] = center
+pu.plot_box(ax, extents, A2B=A2B, color="magenta", alpha=0.5)
 
 
 #%%
