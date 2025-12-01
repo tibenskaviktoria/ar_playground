@@ -40,6 +40,7 @@ def load_calibration(path="calib.npz"):
     d = np.load(path)
     return d["camera_matrix"], d["dist_coeffs"]
 
+
 #FIXME: save image-size along the calibration parameters!
 def save_calibration(camera_matrix, dist_coeffs, path="calib.npz"):
     np.savez(path, camera_matrix=camera_matrix, dist_coeffs=dist_coeffs)

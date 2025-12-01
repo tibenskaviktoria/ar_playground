@@ -7,6 +7,7 @@ import numpy as np
 import cv2
 import trimesh
 import matplotlib.pyplot as plt
+from pytransform3d.rotations import matrix_from_axis_angle
 from cv_utils import (
     load_calibration,
     create_charuco_board,
@@ -25,13 +26,21 @@ def init_scene(scale = 1.0):
     flip_z = np.eye(4)
     flip_z[2, 2] = -1
     model_pose = np.eye(4)
-    model_pose[:3, 3] = [0, 0, 0.02]
-    scene.add(pyrender.Mesh.from_trimesh(mesh))
-    return scene, mesh
+    # model_pose[:3, 3] = [0.1, 0.2, -0.4]
+    model_pose[:3, 3] = [0, 0, 0]
+    scene.add(pyrender.Mesh.from_trimesh(mesh), pose=model_pose)
+    return scene, mesh, model_pose
+
+
+def rotx(theta):
+    R = matrix_from_axis_angle((1,0,0, theta))
+    T = np.eye(4)
+    T[0:3,0:3] = R
+    return T
 
 
 #%%
-scene, mesh = init_scene(SYSTEM_SCALE)
+scene, mesh, model_pose = init_scene(SYSTEM_SCALE)
 mesh.bounding_box.extents
 print(mesh.extents)
 
@@ -52,7 +61,12 @@ T_camera, rvec, tvec = estimate_pose_charuco(
     camera_matrix, 
     dist_coeffs
 )
-cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvec, tvec, board.getSquareLength() * 3)
+
+T_camera_corrected = T_camera @ rotx(np.pi)
+T_cam2world = np.linalg.inv(T_camera_corrected)
+# T_cam2world = T_camera_corrected
+
+# cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvec, tvec, board.getSquareLength() * 3)
 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 plt.imshow(frame)
 print("T_camera", T_camera)
@@ -68,26 +82,26 @@ cube = trimesh.creation.box(extents=[0.03, 0.03, 0.03])  # 3 cm cube
 cube_pyr = pyrender.Mesh.from_trimesh(cube)
 scene.add(cube_pyr, pose=np.eye(4))
 
-test_cam_pose = np.eye(4)
-test_cam_pose = np.array([
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 1, 0.4],
-    [0, 0, 0, 1]
-])
-
-combined_pose = test_cam_pose @ T_camera
-print("Combined pose:\n", combined_pose)
-
 camera = pyrender.IntrinsicsCamera(
     fx=camera_matrix[0,0],
     fy=camera_matrix[1,1],
     cx=camera_matrix[0,2],
     cy=camera_matrix[1,2]
-)   
+)
+
+test_cam_pose = np.eye(4)
+test_cam_pose = np.array([
+    [1, 0, 0, 0.2],
+    [0, 1, 0, 0.4],
+    [0, 0, 1, -0.5],
+    [0, 0, 0, 1]
+])
+
+combined_pose = test_cam_pose @ T_cam2world
+print("Combined pose:\n", combined_pose)
 
 # Assign the camera pose
-selected_cam_pose = test_cam_pose
+selected_cam_pose = combined_pose
 camera_node = scene.add(camera, pose=selected_cam_pose)
 
 color, depth = renderer.render(scene)
@@ -106,30 +120,32 @@ print("Mask coverage (percent):", mask.sum() * 100.0 / mask.size)
 
 
 #%%
+#%matplotlib tk
+
 # Visualize the camera position and rotation in world space
 import pytransform3d.camera as pc
 import pytransform3d.transformations as pt
+import pytransform3d.plot_utils as pu
 
-cam2world = pt.transform_from_pq([0, 0, 0, np.sqrt(0.5), -np.sqrt(0.5), 0, 0])
-sensor_size = np.array([0.036, 0.024]) # default parameters of a camera in Blender
-intrinsic_matrix = np.array(
-    [
-        [0.05, 0, sensor_size[0] / 2.0],
-        [0, 0.05, sensor_size[1] / 2.0],
-        [0, 0, 1],
-    ]
-)
-virtual_image_distance = 1
+virtual_image_distance = .5
 
-ax = pt.plot_transform(A2B=np.eye(4), s=0.2)  # world origin axes
-pt.plot_transform(A2B=selected_cam_pose, ax=ax, s=0.2)
+plt.figure(num='3d', clear=True)
+ax = pt.plot_transform(A2B=np.eye(4), s=0.2, name = 'world')  # world origin axes
+pt.plot_transform(A2B=selected_cam_pose, ax=ax, s=0.2, name = 'camera')
 pc.plot_camera(
     ax,
     cam2world=selected_cam_pose,
-    M=intrinsic_matrix,
-    sensor_size=sensor_size,
+    M=camera_matrix,
+    sensor_size=(1280,720),
     virtual_image_distance=virtual_image_distance,
 )
+
+bounds_min, bounds_max = mesh.bounds
+center_model = (bounds_min + bounds_max) / 2.0
+T_center = np.eye(4)
+T_center[:3, 3] = center_model
+pu.plot_box(ax, mesh.extents, A2B=model_pose @ T_center, color="cyan", alpha=0.5)
+
 plt.show()
 
 
