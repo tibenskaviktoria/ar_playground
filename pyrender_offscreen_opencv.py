@@ -33,7 +33,7 @@ mesh.bounding_box.extents
 #%%
 
 # Load calibration
-camera_matrix, dist_coeffs = load_calibration("MicrosoftLifeCam_fixedFocus50_calib.npz")
+camera_matrix, dist_coeffs = load_calibration("./calibration/MicrosoftLifeCam_fixedFocus50_calib.npz")
 image_width=1280
 image_height=720
 

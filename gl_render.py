@@ -25,7 +25,7 @@ def main():
     detector_params = cv2.aruco.DetectorParameters()
 
     # Load calibration
-    camera_matrix, dist_coeffs = load_calibration("MicrosoftLifeCam_fixedFocus50_calib.npz")
+    camera_matrix, dist_coeffs = load_calibration("./calibration/MicrosoftLifeCam_fixedFocus50_calib.npz")
     if camera_matrix is None:
         print("ERROR: No calibration file found. Run calibrate_camera.py first.")
         return

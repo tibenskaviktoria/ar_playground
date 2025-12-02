@@ -21,7 +21,7 @@ def main():
     img_size = None
 
     # Try to load existing calibration
-    camera_matrix, dist_coeffs = load_calibration("MicrosoftLifeCam_fixedFocus50_calib.npz")
+    camera_matrix, dist_coeffs = load_calibration("./calibration/MicrosoftLifeCam_fixedFocus50_calib.npz")
     if camera_matrix is None:
         print("No calib.npz found — running in uncalibrated mode. Press 'c' to capture charuco frames, 'k' to calibrate.")
     else:
