@@ -53,7 +53,7 @@ print(mesh.extents)
 
 
 #%%
-camera_matrix, dist_coeffs = load_calibration("MicrosoftLifeCam_fixedFocus50_calib.npz")
+camera_matrix, dist_coeffs = load_calibration("./calibration/MicrosoftLifeCam_fixedFocus50_calib.npz")
 image_width=1280
 image_height=720
 
@@ -87,7 +87,7 @@ print("T_camera", T_camera)
 
 #%%
 
-light = pyrender.DirectionalLight(color=np.ones(3), intensity=50.0)
+light = pyrender.DirectionalLight(color=np.ones(3), intensity=20.0)
 scene.add(light, pose=np.eye(4))
 
 camera = pyrender.IntrinsicsCamera(
@@ -107,14 +107,19 @@ plt.imshow(color)
 
 
 #%%
-# Blend the background and rendered image (where color !=  white)
-# FIXME: Improve the mask to avoid white parts inside the model
-white = np.array([255, 255, 255], dtype=color.dtype)
-mask = ~np.all(color == white, axis=-1)  # True where pixel is NOT pure white
-mask3 = np.stack([mask]*3, axis=-1)
-composite = np.where(mask3, color, frame)
-plt.imshow(composite)
-print("Mask coverage (percent):", mask.sum() * 100.0 / mask.size)
+
+plt.imshow(color)
+
+#%%
+
+def create_depth_mask(depth, color, frame):
+    """Create a binary mask where depth is valid (greater than zero)."""
+    mask = depth > 0
+    mask3 = np.stack([mask]*3, axis=-1)
+    composite = np.where(mask3, color, frame)
+    return composite
+
+plt.imshow(create_depth_mask(depth, color, frame))
 
 
 #%%
