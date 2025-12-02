@@ -3,17 +3,20 @@ import numpy as np
 import cv2
 from contextlib import contextmanager
 
+
 @contextmanager
-def createWindow(title):
+def createWindow(title, width=1280, height=720):
     cv2.namedWindow(title, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(title, width, height)
     try:
         yield
     finally:
-        cv2.destroyWindow(title)
+        cv2.destroyAllWindows()
+        cv2.waitKey(1)  # Process pending events
 
 
 @contextmanager
-def openCapture(camera_index=1, image_width=1280, image_height=720):
+def openCapture(camera_index=0, image_width=1280, image_height=720):
     # Open default camera (0). On Windows, CAP_DSHOW often reduces latency when opening.
     cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
 
@@ -59,7 +62,7 @@ def create_charuco_board():
     return board
 
 
-def transfrom_rvec_tvec_to_matrix(rvec, tvec):
+def convert_rvec_tvec_to_matrix(rvec, tvec):
     R, _ = cv2.Rodrigues(rvec)
     T = np.eye(4)
     T[:3, :3] = R
@@ -72,7 +75,7 @@ def estimate_pose_charuco(gray_image, board, camera_matrix, dist_coeffs):
 
     corners, ids, _ = cv2.aruco.detectMarkers(gray_image, board.getDictionary())
     if ids is None or len(ids) < MIN_CORNERS_FOR_POSE:
-        return None, None
+        return None
     
     _, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
         markerCorners=corners,
@@ -82,7 +85,7 @@ def estimate_pose_charuco(gray_image, board, camera_matrix, dist_coeffs):
     )
 
     if charuco_ids is None or len(charuco_ids) < MIN_CORNERS_FOR_POSE:
-        return None, None
+        return None
     
     retval, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
         charucoCorners=charuco_corners,
@@ -95,6 +98,13 @@ def estimate_pose_charuco(gray_image, board, camera_matrix, dist_coeffs):
     )
 
     if not retval:
-        return None, None
+        return None
     
-    return transfrom_rvec_tvec_to_matrix(rvec, tvec), rvec, tvec
+    return convert_rvec_tvec_to_matrix(rvec, tvec)
+
+
+def draw_transformed_axes_on_image(image, camera_matrix, dist_coeffs, A2B, length=0.05):
+    tvec = A2B[:3, 3]
+    rvec = cv2.Rodrigues(A2B[:3, :3])[0]
+    cv2.drawFrameAxes(image, camera_matrix, dist_coeffs, rvec, tvec, length)
+    return image

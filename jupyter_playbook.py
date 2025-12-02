@@ -12,8 +12,10 @@ from pytransform3d.transformations import transform_from as tf
 from cv_utils import (
     load_calibration,
     create_charuco_board,
-    estimate_pose_charuco
+    estimate_pose_charuco,
+    draw_transformed_axes_on_image
 )
+from utils import rotx
 
 SYSTEM_SCALE = 0.05
 
@@ -32,20 +34,6 @@ def init_scene(scale = 1.0):
     return scene, mesh
 
 
-def rotx(theta):
-    R = matrix_from_axis_angle((1,0,0, theta))
-    T = np.eye(4)
-    T[:3,:3] = R
-    return T
-
-
-def draw_transformed_axes_on_image(image, camera_matrix, dist_coeffs, A2B, length=0.05):
-    tvec = A2B[:3, 3]
-    rvec = cv2.Rodrigues(A2B[:3, :3])[0]
-    cv2.drawFrameAxes(image, camera_matrix, dist_coeffs, rvec, tvec, length)
-    return image
-
-
 #%%
 scene, mesh = init_scene(SYSTEM_SCALE)
 mesh.bounding_box.extents
@@ -62,7 +50,7 @@ image_height=720
 frame = np.load("frame.npz")['frame']
 board = create_charuco_board()
 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  
-T_camera, rvec, tvec = estimate_pose_charuco(
+T_camera = estimate_pose_charuco(
     gray, 
     board, 
     camera_matrix, 
