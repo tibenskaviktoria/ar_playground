@@ -21,20 +21,18 @@ def main():
     img_size = None
 
     # Try to load existing calibration
-    camera_matrix, dist_coeffs = load_calibration("./calibration/MicrosoftLifeCam_fixedFocus50_calib.npz")
+    camera_matrix, dist_coeffs = load_calibration()
     if camera_matrix is None:
         print("No calib.npz found — running in uncalibrated mode. Press 'c' to capture charuco frames, 'k' to calibrate.")
     else:
         print("Loaded calib.npz — pose estimation enabled.")
 
-    dir = Path(f"captures{timestamp()}")
-    dir.mkdir(exist_ok = False)
-
+    captures_dir = None
 
     # Enter window + capture contexts with a single ExitStack (avoids deep nesting)
     with ExitStack() as stack:
         stack.enter_context(createWindow("Camera (ChArUco)"))
-        cap = stack.enter_context(openCapture(0))
+        cap = stack.enter_context(openCapture(1))
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -98,10 +96,13 @@ def main():
             # Capture current charuco corners (only if we detected charuco corners)
             if key == ord('c'):
                 if charuco_corners is not None and charuco_ids is not None and len(charuco_ids) > 3:
+                    if captures_dir is None:
+                        captures_dir = Path(f"captures{timestamp()}")
+                        captures_dir.mkdir(exist_ok=False)
                     # store as required by calibrateCameraCharuco: list of arrays, and list of ids
                     all_corners.append(charuco_corners)
                     all_ids.append(charuco_ids)
-                    cv2.imwrite(dir.joinpath(f"image{len(all_corners)}.png"), frame)
+                    cv2.imwrite(captures_dir.joinpath(f"image{len(all_corners)}.png"), frame)
                     print(f"Captured frame #{len(all_corners)} (charuco corners: {len(charuco_ids)})")
                 else:
                     print("No valid Charuco corners detected to capture (need >3). Move board and try again.")
