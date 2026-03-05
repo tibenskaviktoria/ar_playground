@@ -6,13 +6,11 @@ Hands-on playground for learning augmented reality with:
 - Raw OpenGL rendering (wireframe cube)
 - Pyrender rendering (offline model preview + camera compositing)
 
-This project is a learning journal, not a production AR stack.
+This project explores core AR concepts through hands‑on prototypes focused on calibration, pose estimation, and 3D rendering.
 
-## My beginnings with augmented reality
+I built this project to deepen my understanding of augmented reality fundamentals, starting from camera calibration and gradually extending into real‑time 3D rendering.
 
-I decided to challenge myself with learning augmented reality from scratch. I had no previous AR experience, so I started with camera calibration and then built up step-by-step into rendering a 3D model into camera space.
-
-I do not claim this is the only correct way to do AR; this repo documents what I tried, what worked, and where some issues appeared. Think of it as my notes and progress log.
+The repository documents the approach I used, including practical insights, implementation decisions, and challenges encountered along the way.
 
 ## Setup Python virtual environment (venv)
 
