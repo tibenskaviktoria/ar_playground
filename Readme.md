@@ -128,7 +128,7 @@ This is the end-to-end demo that combines tracking + rendering + compositing:
 
 This is where all pieces connect into a functional AR overlay of the 3D car on the board.
 
-![Pyrender offscreen OpenCV demo: car rendered on the ChArUco board](docs/images/car_on_charuco.png)
+![Pyrender offscreen OpenCV demo: car rendered on the ChArUco board](docs/images/car_on_charuco.gif)
 
 ## Notes and troubleshooting
 
