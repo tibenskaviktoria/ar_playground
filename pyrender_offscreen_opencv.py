@@ -47,20 +47,8 @@ def estimate_camera_pose(board, frame, camera_matrix, dist_coeffs):
     return T_cam2world, frame
 
 
-def load_and_add_model_to_scene(pyr_scene, model_path, p = [0, 0, 0], rotation = [0, 0, 0], model_scale = 1.0):
-    """
-    Initialize a pyrender scene with a 3D model.
-    Loads a 3D model from file, applies transformations, and adds it to the pyrender scene.
-    The model is scaled, rotated, and positioned according to the specified parameters.
-    Parameters:
-        pyr_scene: The pyrender scene object to which the model will be added.
-        model_path (str): Path to the 3D model file to be loaded.
-        p (list, optional): Position [x, y, z] of the model in 3D space. Defaults to [0, 0, 0].
-        rotation (list, optional): Rotation angles [x, y, z] for the model. Defaults to [0, 0, 0].
-        model_scale (float, optional): Scale factor to apply to the model. Defaults to 1.0.
-    Returns:
-        trimesh.Trimesh: The merged and transformed mesh object.
-    """
+def load_model_mesh_and_pose(model_path, p = [0, 0, 0], rotation = [0, 0, 0], model_scale = 1.0):
+    """Load and pre-transform model once, return reusable pyrender mesh and pose."""
     mesh = trimesh.load(model_path, process=False)
     mesh = sum(mesh.geometry.values()) # Merge all geometries into one mesh
     mesh.apply_scale(model_scale)
@@ -68,9 +56,8 @@ def load_and_add_model_to_scene(pyr_scene, model_path, p = [0, 0, 0], rotation =
     y_rot = matrix_from_axis_angle((0,1,0, rotation[1]))
     z_rot = matrix_from_axis_angle((0,0,1, rotation[2]))
     model_rotation = z_rot @ x_rot
-    model_correction = transform_from(p=p, R=model_rotation)
-    pyr_scene.add(pyrender.Mesh.from_trimesh(mesh), pose=model_correction)
-    return mesh
+    model_pose = transform_from(p=p, R=model_rotation)
+    return pyrender.Mesh.from_trimesh(mesh), model_pose
 
 
 def add_camera_to_scene(pyr_scene, camera_matrix, T_cam2world):
@@ -98,7 +85,7 @@ def create_depth_mask(depth, color, frame):
 
 
 def main():
-    camera_matrix, dist_coeffs = load_calibration("./calibration/MicrosoftLifeCam_fixedFocus50_calib.npz")
+    camera_matrix, dist_coeffs = load_calibration("./calibration/MicrosoftLifeCamHD_fixedFocus50_calib.npz")
     if camera_matrix is None:
         print("No calibration found. Exiting...")
         return
@@ -107,6 +94,13 @@ def main():
     image_height=720
     board = create_charuco_board()
     scene = pyrender.Scene()
+    model_mesh, model_pose = load_model_mesh_and_pose(
+        "./3D_models/Jeep_Renegade_2016.obj",
+        model_scale=0.05,
+        rotation=[np.pi/2, 0, -np.pi/2],
+        p=[0.105, -0.075, 0]
+    )
+    light = pyrender.DirectionalLight(color=np.ones(3), intensity=20.0)
 
     with ExitStack() as stack:
         renderer = pyrender.OffscreenRenderer(viewport_width=image_width, viewport_height=image_height)
@@ -114,7 +108,7 @@ def main():
         
         stack.enter_context(createWindow("AR Camera"))
         # FIXME: the camera seems to work only when the script is ran for the first time
-        cap = stack.enter_context(openCapture(0))
+        cap = stack.enter_context(openCapture(1))
         
         while True:
             ret, frame = cap.read()
@@ -124,21 +118,17 @@ def main():
             
             T_cam2world, frame = estimate_camera_pose(board, frame, camera_matrix, dist_coeffs)
 
-            load_and_add_model_to_scene(
-                scene,
-                "./3D_models/Jeep_Renegade_2016.obj",
-                model_scale=0.05,
-                rotation = [np.pi/2, 0, -np.pi/2],
-                p = [0.105, -0.075, 0]
-            )
-            
-            light = pyrender.DirectionalLight(color=np.ones(3), intensity=20.0)
+            scene.add(model_mesh, pose=model_pose)
             scene.add(light, pose=np.eye(4))
 
             camera_added_succ = add_camera_to_scene(scene, camera_matrix, T_cam2world)
 
             if camera_added_succ:
-                color, depth = renderer.render(scene)
+                try:
+                    color, depth = renderer.render(scene)
+                except Exception as e:
+                    print(f"Renderer crashed: {e}")
+                    break
                 composite_img = create_depth_mask(depth, color, frame)
                 cv2.imshow("AR Camera", composite_img)
             else:
