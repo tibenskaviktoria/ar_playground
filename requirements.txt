@@ -3,5 +3,6 @@ opencv-python==4.10.0.84
 pygame==2.6.1
 pyrr==0.10.3
 pyrender==0.1.45
+PyOpenGL==3.1.9
 trimesh==4.9.0
 numpy==1.26.4
